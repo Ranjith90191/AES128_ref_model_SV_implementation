@@ -180,7 +180,7 @@ function bit [31:0] g(bit [31:0] w,bit [31:0] round);
 endfunction
 
 function void word_gen(bit [7:0] k[4][4]);
-    int round = 0;
+    automatic int round = 0;
     bit [31:0] round_const[10] = '{32'h01000000,32'h02000000,32'h04000000,32'h08000000,32'h10000000,32'h20000000,32'h40000000,32'h80000000,32'h1b000000,32'h36000000};
     word[0] = {k[0][0],k[1][0],k[2][0],k[3][0]};
     word[1] = {k[0][1],k[1][1],k[2][1],k[3][1]};
@@ -198,7 +198,7 @@ function void word_gen(bit [7:0] k[4][4]);
 endfunction
 
 function void round_key_gen();
-    int w_idx=0;
+    automatic int w_idx=0;
     foreach(rk[i])begin
         rk[i][0][0] = word[w_idx][31:24];
         rk[i][1][0] = word[w_idx][23:16];
