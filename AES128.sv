@@ -2,7 +2,8 @@ module tb;
 bit [7:0] key[4][4];
 bit [7:0] state[4][4];
 bit [7:0] e_out[4][4];
-
+bit [7:0] d_out[4][4];
+        
 bit [31:0] word[44];
 bit [7:0] rk[11][4][4];
 
@@ -186,7 +187,7 @@ function bit [31:0] g(bit [31:0] w,bit [31:0] round);
 endfunction
 
 function void word_gen(bit [7:0] k[4][4]);
-    int round = 0;
+    automatic int round = 0;
     bit [31:0] round_const[10] = '{32'h01000000,32'h02000000,32'h04000000,32'h08000000,32'h10000000,32'h20000000,32'h40000000,32'h80000000,32'h1b000000,32'h36000000};
     word[0] = {k[0][0],k[1][0],k[2][0],k[3][0]};
     word[1] = {k[0][1],k[1][1],k[2][1],k[3][1]};
@@ -266,7 +267,7 @@ function void matrix_maker(input bit [127:0] key,input bit [127:0] state,output 
     k[2][2] = key[47:40];
     k[3][2] = key[39:32];
 
-    k[0][3] = key[32:24];
+    k[0][3] = key[31:24];
     k[1][3] = key[23:16];
     k[2][3] = key[15:8];
     k[3][3] = key[7:0];
@@ -286,7 +287,7 @@ function void matrix_maker(input bit [127:0] key,input bit [127:0] state,output 
     s[2][2] = state[47:40];
     s[3][2] = state[39:32];
 
-    s[0][3] = state[32:24];
+    s[0][3] = state[31:24];
     s[1][3] = state[23:16];
     s[2][3] = state[15:8];
     s[3][3] = state[7:0];
@@ -380,6 +381,67 @@ function void MixColumns(input bit[7:0] s[4][4],output bit[7:0] os[4][4]);
 
 endfunction
 
+function bit [7:0] mul9(input bit [7:0] s);
+    return multiplier(multiplier(multiplier(s)))^s;
+endfunction
+
+function bit [7:0] mul11(input bit [7:0] s);
+    return multiplier(multiplier(multiplier(s)))^multiplier(s)^s;
+endfunction
+
+function bit [7:0] mul13(input bit [7:0] s);
+    return multiplier(multiplier(multiplier(s)))^multiplier(multiplier(s))^s;
+endfunction
+
+function bit [7:0] mul14(input bit [7:0] s);
+    return multiplier(multiplier(multiplier(s)))^multiplier(multiplier(s))^multiplier(s);
+endfunction
+
+function void InvMixColumns(input bit[7:0] s[4][4],output bit[7:0] os[4][4]);
+
+    os[0][0] = mul14(s[0][0])^mul11(s[1][0])^mul13(s[2][0])^mul9(s[3][0]);
+    os[1][0] = mul9(s[0][0])^mul14(s[1][0])^mul11(s[2][0])^mul13(s[3][0]);
+    os[2][0] = mul13(s[0][0])^mul9(s[1][0])^mul14(s[2][0])^mul11(s[3][0]);
+    os[3][0] = mul11(s[0][0])^mul13(s[1][0])^mul9(s[2][0])^mul14(s[3][0]);
+
+    os[0][1] = mul14(s[0][1])^mul11(s[1][1])^mul13(s[2][1])^mul9(s[3][1]);
+    os[1][1] = mul9(s[0][1])^mul14(s[1][1])^mul11(s[2][1])^mul13(s[3][1]);
+    os[2][1] = mul13(s[0][1])^mul9(s[1][1])^mul14(s[2][1])^mul11(s[3][1]);
+    os[3][1] = mul11(s[0][1])^mul13(s[1][1])^mul9(s[2][1])^mul14(s[3][1]);
+
+    os[0][2] = mul14(s[0][2])^mul11(s[1][2])^mul13(s[2][2])^mul9(s[3][2]);
+    os[1][2] = mul9(s[0][2])^mul14(s[1][2])^mul11(s[2][2])^mul13(s[3][2]);
+    os[2][2] = mul13(s[0][2])^mul9(s[1][2])^mul14(s[2][2])^mul11(s[3][2]);
+    os[3][2] = mul11(s[0][2])^mul13(s[1][2])^mul9(s[2][2])^mul14(s[3][2]);
+
+    os[0][3] = mul14(s[0][3])^mul11(s[1][3])^mul13(s[2][3])^mul9(s[3][3]);
+    os[1][3] = mul9(s[0][3])^mul14(s[1][3])^mul11(s[2][3])^mul13(s[3][3]);
+    os[2][3] = mul13(s[0][3])^mul9(s[1][3])^mul14(s[2][3])^mul11(s[3][3]);
+    os[3][3] = mul11(s[0][3])^mul13(s[1][3])^mul9(s[2][3])^mul14(s[3][3]);
+
+endfunction
+
+function void Decryption(input bit[7:0] k[4][4],input bit[7:0] c[4][4],output bit[7:0] d_out[4][4]);
+    bit [7:0] state_in[4][4];
+    bit [7:0] state_out[4][4];
+    state_in = c;
+
+    word_gen(k);
+    round_key_gen();
+
+    AddRoundKey(state_in,rk[10],state_out);state_in=state_out;
+    for(int i=9;i>=1;i--)begin
+        InvShiftRows(state_in,state_out);state_in=state_out;
+        InvSubBytes(state_in,state_out);state_in=state_out;
+        AddRoundKey(state_in,rk[i],state_out);state_in=state_out;
+        InvMixColumns(state_in,state_out);state_in=state_out;
+    end
+    InvShiftRows(state_in,state_out);state_in=state_out;
+    InvSubBytes(state_in,state_out);state_in=state_out;
+    AddRoundKey(state_in,rk[0],state_out);
+    d_out = state_out;
+endfunction
+        
 function void SubBytes(input bit[7:0] s[4][4], output bit[7:0] os[4][4]);
     bit [7:0] r[16][16];
     r[0]  = '{8'h63, 8'h7c, 8'h77, 8'h7b, 8'hf2, 8'h6b, 8'h6f, 8'hc5, 8'h30, 8'h01, 8'h67, 8'h2b, 8'hfe, 8'hd7, 8'hab, 8'h76};
@@ -643,11 +705,18 @@ function bit [127:0] de_matrix_maker(input bit [7:0] s[4][4]);
 endfunction
 
 initial begin
-s=128'hAE2D8A57_1E03AC9C_9EB76FAC_45AF8E51;
-k=128'h2B7E1516_28AED2A6_ABF71588_09CF4F3C;
+    s=128'hAE2D8A57_1E03AC9C_9EB76FAC_45AF8E51;
+    k=128'h2B7E1516_28AED2A6_ABF71588_09CF4F3C;
 
-matrix_maker(k,s,key,state);
-Encryption(key,state,e_out);
-printer(e_out,1);
+    matrix_maker(k,s,key,state);
+
+    Encryption(key,state,e_out);
+    printer(e_out,1);
+
+    Decryption(key,e_out,d_out);
+    printer(d_out,1);
+
+    if(d_out==state) $display("PASS");
+    else $display("FAIL");
 end
 endmodule
